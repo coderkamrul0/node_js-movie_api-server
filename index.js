@@ -1,3 +1,4 @@
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const app = express();
 const cors = require("cors");
@@ -10,7 +11,6 @@ app.use(express.json());
 
 // mongodb connect and all api
 
-const { MongoClient, ServerApiVersion } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.mjrrjle.mongodb.net/?retryWrites=true&w=majority`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -50,11 +50,13 @@ async function run() {
     });
 
     // get single movie
-    app.get("/get-single", async (req, res) => {
-      const movieId = req.query.id;
+    app.get("/get-single/:id", async (req, res) => {
+      const movieId = req.params.id;
 
       try {
-        const result = await moviesCollection.findOne({ id: movieId });
+        const result = await moviesCollection.findOne({
+          _id: new ObjectId(movieId),
+        });
         if (result) {
           res.send(result);
         } else {
@@ -70,13 +72,28 @@ async function run() {
       const page = Number(req.query.page);
       const size = Number(req.query.size);
 
-      const skip = (page - 1) * size;
-
       try {
-        const movies = await moviesCollection.find().skip(skip).limit(size);
+        const count = await moviesCollection.countDocuments();
+        const totalPages = Math.ceil(count / size);
 
-        res.send(movies);
+        if (page > totalPages || page < 1) {
+          return res.status(400).json({ error: "Invalid page number" });
+        }
+
+        const skip = (page - 1) * size;
+
+        const movies = await moviesCollection
+          .find()
+          .skip(skip)
+          .limit(size)
+          .toArray();
+
+        res.json({
+          movies,
+          totalPages,
+        });
       } catch (error) {
+        console.error(error);
         res.status(500).json({ error: "Failed to fetch" });
       }
     });
