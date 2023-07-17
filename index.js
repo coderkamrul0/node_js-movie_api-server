@@ -1,7 +1,7 @@
-const express = require ('express');
+const express = require("express");
 const app = express();
-const cors = require('cors');
-require('dotenv').config();
+const cors = require("cors");
+require("dotenv").config();
 const port = process.env.PORT || 5000;
 
 // middleware
@@ -10,7 +10,7 @@ app.use(express.json());
 
 // mongodb connect and all api
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.mjrrjle.mongodb.net/?retryWrites=true&w=majority`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -19,36 +19,82 @@ const client = new MongoClient(uri, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  }
+  },
 });
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
-    // Send a ping to confirm a successful connection
+    const moviesCollection = client.db("oyebeauty").collection("movies");
+
+    // save movie into database
+    app.post("/add-movie", async (req, res) => {
+      const movie = req.body;
+
+      try {
+        const result = await moviesCollection.insertOne(movie);
+        res.status(201).json(result);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to add" });
+      }
+    });
+
+    // get all movie from database
+    app.get("/get-all", async (req, res) => {
+      try {
+        const result = await moviesCollection.find().toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to fetch" });
+      }
+    });
+
+    // get single movie
+    app.get("/get-single", async (req, res) => {
+      const movieId = req.query.id;
+
+      try {
+        const result = await moviesCollection.findOne({ id: movieId });
+        if (result) {
+          res.send(result);
+        } else {
+          res.status(404).json({ error: "Movie not found" });
+        }
+      } catch (error) {
+        res.status(500).json({ error: "Failed to fetch" });
+      }
+    });
+
+    // get movies using pagination
+    app.get("/get-paginated", async (req, res) => {
+      const page = Number(req.query.page);
+      const size = Number(req.query.size);
+
+      const skip = (page - 1) * size;
+
+      try {
+        const movies = await moviesCollection.find().skip(skip).limit(size);
+
+        res.send(movies);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to fetch" });
+      }
+    });
+
     await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
   } finally {
     // Ensures that the client will close when you finish/error
-    await client.close();
+    // await client.close();
   }
 }
 run().catch(console.dir);
 
-
-
-
-
-
-
-
-
-
-
-app.get('/', (req,res) => {
-    res.send('Server is running')
-})
+app.get("/", (req, res) => {
+  res.send("Server is running");
+});
 app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
-})
+  console.log(`Server is running on port ${port}`);
+});
